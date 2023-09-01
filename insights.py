@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 from websocket import create_connection
@@ -23,7 +24,7 @@ message_queue = queue.Queue()
 
 def transform_message(message):
     result = json.loads(message)
-    if 'type' in result and result['type'] == 'l2update' and 'product_id' in result and result['changes'][0][2] != '0.00000000':
+    if 'type' in result and result['type'] == 'l2update' and 'product_id' in result and result['changes'][0][2] != '0.00000000' and result['changes'][0][1] != None:
         # Extract data from the websocket message
         tz = result['time']
         product_id = result['product_id']
@@ -42,6 +43,18 @@ def transform_message(message):
 
         return transformed_message.encode("utf-8").decode("utf-8")
 
+def find_extreme(input_df, side):
+    df = input_df[input_df['side'] == side]
+    if not df.empty:
+        if side == 'bid':
+            outcome = df.loc[df['price_level'].idxmax()]
+        elif side == 'ask':
+            outcome = df.loc[df['price_level'].idxmin()]
+    else:
+        print(f"No rows where 'side' is '{side}'")
+        outcome = pd.DataFrame(columns=df.columns)
+    return outcome
+
 def process_batch_messages(interval):
     while True:
         batch = [] # your batch
@@ -51,11 +64,11 @@ def process_batch_messages(interval):
                 batch.append(ast.literal_eval(message_queue.get()))
 
         batch_df = pd.DataFrame.from_records(batch)
-        # Find the highest 'quantity' for 'side' = 'bid'
-        max_bid = batch_df.loc[batch_df[batch_df['side'] == 'bid']['price_level'].idxmax()]
-        # Find the lowest 'quantity' for 'side' = 'ask'
-        min_ask = batch_df.loc[batch_df[batch_df['side'] == 'ask']['price_level'].idxmin()]
 
+        # Find the highest 'price_level' for 'side' = 'bid'
+        max_bid = find_extreme(batch_df, 'bid').dropna()
+        # Find the lowest 'price_level' for 'side' = 'ask'
+        min_ask = find_extreme(batch_df, 'ask').dropna()
         # Create new DataFrame by concatenating the selected rows
         insights_df = pd.concat([max_bid, min_ask], axis=1).transpose()
         insights_df["difference"] = min_ask['price_level'] - max_bid['price_level']
@@ -63,6 +76,10 @@ def process_batch_messages(interval):
 
         dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
         print(f'Batch at {dt} insights: \n {insights_df} \n')
+        # Check if file already exists
+        file_exists = os.path.isfile('data.csv')
+        # Write to file
+        insights_df.to_csv('data.csv', mode='a', index=False, header=not file_exists, float_format='%.10f')
 
 def validate_product_id(product_id):
     if product_id.upper() not in SUPPORTED_PRODUCTS:
