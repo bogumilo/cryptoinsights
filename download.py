@@ -72,17 +72,16 @@ def process_batch_messages(interval):
         max_bid = find_extreme(batch_df, 'bid')
         # Find the lowest 'price_level' for 'side' = 'ask'
         min_ask = find_extreme(batch_df, 'ask')
-        # Print highest_bid and lowest_ask
-        # print(f'highest_bid {tabulate(max_bid.to_frame().transpose(), headers="keys", tablefmt="psql")} \n\n \
-        #     lowest_ask {tabulate(min_ask.to_frame().transpose(), headers="keys", tablefmt="psql")}')
+
         # Create new DataFrame by concatenating the selected rows
         if not max_bid.empty and not min_ask.empty:
             insights_df = pd.concat([max_bid, min_ask], axis=1).dropna().transpose()
             insights_df["difference"] = abs(min_ask['price_level'] - max_bid['price_level'])
             insights_df["mid_price"] = (min_ask['price_level'] + max_bid['price_level'])/2
-            # Gather only the required data
-            # solution_df = pd.Dataframe.from_records(insights_df, columns=['tz', 'product_id', 'mid_price', 'difference'])
-            print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
+
+            ### Uncomment to see in console what is saved to data.csv file
+            # print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
+
             # Check if file already exists
             file_exists = os.path.isfile('data.csv')
             # Write to file
