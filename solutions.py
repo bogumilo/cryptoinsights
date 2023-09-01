@@ -1,5 +1,4 @@
 import sys
-from websocket import create_connection
 import json
 import time
 import queue
