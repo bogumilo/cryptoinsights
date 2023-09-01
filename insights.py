@@ -45,7 +45,7 @@ def transform_message(message):
         return transformed_message.encode("utf-8").decode("utf-8")
 
 def find_extreme(input_df, side):
-    df = input_df[input_df['side'] == side]
+    df = input_df[input_df.eval("side == side")]
     if not df.empty:
         if side == 'bid':
             outcome = df.loc[df['price_level'].idxmax()]
@@ -70,12 +70,17 @@ def process_batch_messages(interval):
         max_bid = find_extreme(batch_df, 'bid').dropna()
         # Find the lowest 'price_level' for 'side' = 'ask'
         min_ask = find_extreme(batch_df, 'ask').dropna()
+        # Print highest_bid and lowest_ask
+        # print(f'highest_bid {tabulate(max_bid.to_frame().transpose(), headers="keys", tablefmt="psql")} \n\n \
+        #     lowest_ask {tabulate(min_ask.to_frame().transpose(), headers="keys", tablefmt="psql")}')
         # Create new DataFrame by concatenating the selected rows
-        insights_df = pd.concat([max_bid, min_ask], axis=1).transpose()
+        insights_df = pd.concat([max_bid, min_ask], axis=1).dropna().transpose()
         insights_df["difference"] = min_ask['price_level'] - max_bid['price_level']
         insights_df["mid_price"] = (min_ask['price_level'] + max_bid['price_level'])/2
-
+        # Gather only the required data
         dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
+        insights_df["tz"] = dt
+        # solution_df = pd.Dataframe.from_records(insights_df, columns=['tz', 'product_id', 'mid_price', 'difference'])
         print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
         # Check if file already exists
         file_exists = os.path.isfile('data.csv')
