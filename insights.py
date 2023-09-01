@@ -65,6 +65,8 @@ def process_batch_messages(interval):
                 batch.append(ast.literal_eval(message_queue.get()))
 
         batch_df = pd.DataFrame.from_records(batch)
+        dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
+        batch_df["tz"] = dt
 
         # Find the highest 'price_level' for 'side' = 'bid'
         max_bid = find_extreme(batch_df, 'bid').dropna()
@@ -78,8 +80,6 @@ def process_batch_messages(interval):
         insights_df["difference"] = min_ask['price_level'] - max_bid['price_level']
         insights_df["mid_price"] = (min_ask['price_level'] + max_bid['price_level'])/2
         # Gather only the required data
-        dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
-        insights_df["tz"] = dt
         # solution_df = pd.Dataframe.from_records(insights_df, columns=['tz', 'product_id', 'mid_price', 'difference'])
         print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
         # Check if file already exists
