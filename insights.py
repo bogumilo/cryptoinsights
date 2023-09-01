@@ -7,6 +7,7 @@ import time
 import queue
 import threading
 import ast
+from tabulate import tabulate
 import pandas as pd
 
 SOCKET_URI = "wss://ws-feed-public.sandbox.exchange.coinbase.com"
@@ -75,7 +76,7 @@ def process_batch_messages(interval):
         insights_df["mid_price"] = (min_ask['price_level'] + max_bid['price_level'])/2
 
         dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
-        print(f'Batch at {dt} insights: \n {insights_df} \n')
+        print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
         # Check if file already exists
         file_exists = os.path.isfile('data.csv')
         # Write to file
