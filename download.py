@@ -79,13 +79,40 @@ def process_batch_messages(interval):
             insights_df["difference"] = abs(min_ask['price_level'] - max_bid['price_level'])
             insights_df["mid_price"] = (min_ask['price_level'] + max_bid['price_level'])/2
 
+            # insights_df.dropna(inplace=True)
+            tz_max = insights_df['tz'].max()
+            insights_df['tz'] = pd.to_datetime(insights_df['tz'])
+
+            current = insights_df[insights_df['tz'] == tz_max]
+
+            highest_bid = current.loc[insights_df['side'] == 'bid'].groupby(['product_id','tz'])['price_level'].agg('max').iloc[0]
+            highest_bid_qty = current.loc[(insights_df['side'] == 'bid') & (current['price_level'] == highest_bid), 'quantity'].to_list()
+            lowest_ask = current.loc[insights_df['side'] == 'ask'].groupby(['product_id','tz'])['price_level'].agg('min').iloc[0]
+            lowest_ask_qty = current.loc[(insights_df['side'] == 'ask') & (current['price_level'] == lowest_ask), 'quantity'].to_list()
+
+            highest_diff = insights_df['difference'].max()
+            insights_df.set_index('tz', inplace=True)
+            avg_mid_price_1m = insights_df["mid_price"].resample('1T').mean().mean()
+            avg_mid_price_5m = insights_df["mid_price"].resample('5T').mean().mean()
+            avg_mid_price_15m = insights_df["mid_price"].resample('15T').mean().mean()
+
+            insights_df["highest_diff"] = highest_diff
+            insights_df["highest_bid"] = highest_bid
+            insights_df["highest_bid_qty"] = ','.join(map(str, highest_bid_qty))
+            insights_df["lowest_ask"] = lowest_ask
+            insights_df["lowest_ask_qty"] = ','.join(map(str, lowest_ask_qty))
+            insights_df["avg_mid_price_1m"] = avg_mid_price_1m
+            insights_df["avg_mid_price_5m"] = avg_mid_price_5m
+            insights_df["avg_mid_price_15m"] = avg_mid_price_15m
+            insights_df.drop(columns=['price_level', 'quantity', 'side','difference','mid_price'], inplace=True)
+            insights_df.drop_duplicates(inplace=True)
             ### Uncomment to see in console what is saved to data.csv file
-            # print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
+            print(f'Batch at {dt} insights: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
 
             # Check if file already exists
-            file_exists = os.path.isfile('data.csv')
+            # file_exists = os.path.isfile('data.csv')
             # Write to file
-            insights_df.to_csv('data.csv', mode='a', index=False, header=not file_exists, float_format='%.10f')
+            # insights_df.to_csv('data.csv', mode='a', index=False, header=not file_exists, float_format='%.10f')
         else:
             continue
 
