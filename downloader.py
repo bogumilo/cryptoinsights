@@ -24,7 +24,7 @@ subscribe_message = {
 # Queue to hold messages
 message_queue = queue.Queue()
 
-D = {'tz':[], 'highest_bid': [], 'lowest_ask': [], 'highest_bid_qty': [], 'lowest_ask_qty': [], 'mid_price': []}
+D = {'tz':[], 'highest_bid': [], 'lowest_ask': [],'difference': [], 'highest_bid_qty': [], 'lowest_ask_qty': [], 'mid_price': []}
 
 def transform_message(message):
     result = json.loads(message)
@@ -101,8 +101,15 @@ def process_batch_messages(interval):
             batch_five["tz"] = dt
             batch_five["highest_bid"] = max_bid
             batch_five["lowest_ask"] = min_ask
+
+            if isinstance(max_bid, str) or isinstance(min_ask, str):
+                batch_five["difference"] = 'n/a'
+            else:
+                batch_five["difference"] = abs(max_bid-min_ask)
+
             batch_five['highest_bid_qty'] = str(find_qty_with_max_price(batch))
             batch_five["lowest_ask_qty"] = str(find_qty_with_min_price(batch))
+
             if isinstance(get_max_bid_price(batch), str) or isinstance(get_min_ask_price(batch), str):
                 batch_five["mid_price"] = 'n/a'
             else:
@@ -111,11 +118,20 @@ def process_batch_messages(interval):
         # Fill dictionary D where we accumulate results
         for key in D.keys():
             D[key].append(batch_five[key])
-        accumulate_df = pd.DataFrame(D)
-        # print(f'\n{insights_df}\n\n')
         # Create new tempo df to calculate another metrics for 1m, 5m, 15m from
+        accumulate_df = pd.DataFrame(D)
+        accumulate_df['tz'] = pd.to_datetime(accumulate_df['tz'])
+        accumulate_df.set_index('tz', inplace=True)
+        #replace current difference with a max observed difference
+        accumulate_df['difference'] = accumulate_df['difference'].max()
 
-        print(f'Insights at {dt} are: \n {tabulate(accumulate_df, headers="keys", tablefmt="psql")} \n')
+        accumulate_df['mid_price'] = pd.to_numeric(accumulate_df['mid_price'], errors='coerce')
+        accumulate_df['avg_mid_price_1m'] = accumulate_df["mid_price"].resample('1T').mean().mean()
+        accumulate_df['avg_mid_price_5m'] = accumulate_df["mid_price"].resample('5T').mean().mean()
+        accumulate_df['avg_mid_price_15m'] = accumulate_df["mid_price"].resample('15T').mean().mean()
+        # print(f'\n{insights_df}\n\n')
+
+        print(f'Insights at {dt} are: \n {tabulate(accumulate_df.tail(1), headers="keys", tablefmt="psql")} \n')
 
 def validate_product_id(product_id):
     if product_id.upper() not in SUPPORTED_PRODUCTS:
