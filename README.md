@@ -6,11 +6,11 @@ use it.
 
 ## Setup
 ```bash
-git clone https://github.com/bogumilo/dockerbogumilo/cryptoinsights && cd cryptoinsights
+git clone https://github.com/bogumilo/cryptoinsights && cd cryptoinsights
 ```
 Python environment:
 ```bash
-pynev virtualenv 3.9.12 env
+pyenv virtualenv 3.9.12 env
 pyenv activate env
 pip install -r requirements.txt
 ```
