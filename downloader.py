@@ -95,18 +95,18 @@ def process_batch_messages(interval):
                     batch_five[key].append(value)
 
             dt = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))
+            max_bid = get_max_bid_price(batch)
+            min_ask = get_min_ask_price(batch)
 
             batch_five["tz"] = dt
-            batch_five["highest_bid"] = get_max_bid_price(batch)
-            batch_five["lowest_ask"] = get_min_ask_price(batch)
+            batch_five["highest_bid"] = max_bid
+            batch_five["lowest_ask"] = min_ask
             batch_five['highest_bid_qty'] = str(find_qty_with_max_price(batch))
             batch_five["lowest_ask_qty"] = str(find_qty_with_min_price(batch))
             if isinstance(get_max_bid_price(batch), str) or isinstance(get_min_ask_price(batch), str):
                 batch_five["mid_price"] = 'n/a'
             else:
-                floats = [get_max_bid_price(batch), get_min_ask_price(batch)]
-                total = sum(floats)
-                batch_five["mid_price"] = total / 2
+                batch_five["mid_price"] = (max_bid+min_ask) / 2
 
         # Fill dictionary D where we accumulate results
         for key in D.keys():
