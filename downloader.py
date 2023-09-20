@@ -24,7 +24,7 @@ subscribe_message = {
 # Queue to hold messages
 message_queue = queue.Queue()
 
-D = {'tz':[], 'highest_bid': [], 'lowest_ask': [], 'highest_bid_qty': [], 'lowest_ask_qty': []}
+D = {'tz':[], 'highest_bid': [], 'lowest_ask': [], 'highest_bid_qty': [], 'lowest_ask_qty': [], 'mid_price': []}
 
 def transform_message(message):
     result = json.loads(message)
@@ -52,7 +52,7 @@ def get_min_ask_price(data):
     ask_orders = [d for d in data if d['side'] == 'ask']
 
     if not ask_orders:
-        return "No 'ask' orders found in data"
+        return 'no asks'
 
     # Find the dictionary with the lowest 'price_level'
     min_ask_order = min(ask_orders, key=lambda x: x['price_level'])
@@ -64,7 +64,7 @@ def get_max_bid_price(data):
     bid_orders = [d for d in data if d['side'] == 'bid']
 
     if not bid_orders:
-        return "No 'bid' orders found in data"
+        return "no bids"
 
     # Find the dictionary with the lowest 'price_level'
     max_bid_order = max(bid_orders, key=lambda x: x['price_level'])
@@ -100,19 +100,22 @@ def process_batch_messages(interval):
             batch_five["highest_bid"] = get_max_bid_price(batch)
             batch_five["lowest_ask"] = get_min_ask_price(batch)
             batch_five['highest_bid_qty'] = str(find_qty_with_max_price(batch))
-            batch_five["lowest_ask_qty"] = str(find_qty_with_max_price(batch))
+            batch_five["lowest_ask_qty"] = str(find_qty_with_min_price(batch))
+            if isinstance(get_max_bid_price(batch), str) or isinstance(get_min_ask_price(batch), str):
+                batch_five["mid_price"] = 'n/a'
+            else:
+                floats = [get_max_bid_price(batch), get_min_ask_price(batch)]
+                total = sum(floats)
+                batch_five["mid_price"] = total / 2
 
-        # for key in D.keys():
-        #     if not batch_five[key]:
-        #         D[key].append(batch_five[key])
-
-        # Create a new dictionary that only includes the specified keys
+        # Fill dictionary D where we accumulate results
         for key in D.keys():
             D[key].append(batch_five[key])
         accumulate_df = pd.DataFrame(D)
         # print(f'\n{insights_df}\n\n')
         # Create new tempo df to calculate another metrics for 1m, 5m, 15m from
-        # print(f'Insights at {dt} are: \n {tabulate(insights_df, headers="keys", tablefmt="psql")} \n')
+
+        print(f'Insights at {dt} are: \n {tabulate(accumulate_df, headers="keys", tablefmt="psql")} \n')
 
 def validate_product_id(product_id):
     if product_id.upper() not in SUPPORTED_PRODUCTS:
