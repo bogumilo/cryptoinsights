@@ -1,15 +1,14 @@
-import os
 import sys
 import argparse
 from websocket import create_connection
 import json
 import time
 import queue
-import threading
 import ast
 from tabulate import tabulate
 import pandas as pd
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 SOCKET_URI = "wss://ws-feed-public.sandbox.exchange.coinbase.com"
 
@@ -23,6 +22,12 @@ subscribe_message = {
 
 # Queue to hold messages
 message_queue = queue.Queue()
+
+# Create a ThreadPoolExecutor
+executor = ThreadPoolExecutor(max_workers=1)
+
+# # Define the interval
+# interval = 5
 
 D = {'tz':[], 'highest_bid': [], 'lowest_ask': [],'difference': [], 'highest_bid_qty': [], 'lowest_ask_qty': [], 'mid_price': []}
 
@@ -88,6 +93,7 @@ def process_batch_messages(interval):
         while time.time() - start_time < interval:
             if not message_queue.empty():
                 batch.append(ast.literal_eval(message_queue.get()))
+        # print(f'current batch is: {batch}\n\n')
 
             batch_five = defaultdict(list)
             for d in batch:
@@ -122,31 +128,36 @@ def process_batch_messages(interval):
         accumulate_df = pd.DataFrame(D)
         accumulate_df['tz'] = pd.to_datetime(accumulate_df['tz'])
         accumulate_df.set_index('tz', inplace=True)
-        #replace current difference with a max observed difference
+        # Replace current difference with a max observed difference
         accumulate_df['difference'] = accumulate_df['difference'].max()
 
         accumulate_df['mid_price'] = pd.to_numeric(accumulate_df['mid_price'], errors='coerce')
         accumulate_df['avg_mid_price_1m'] = accumulate_df["mid_price"].resample('1T').mean().mean()
         accumulate_df['avg_mid_price_5m'] = accumulate_df["mid_price"].resample('5T').mean().mean()
         accumulate_df['avg_mid_price_15m'] = accumulate_df["mid_price"].resample('15T').mean().mean()
-        # print(f'\n{insights_df}\n\n')
 
         print(f'Insights at {dt} are: \n {tabulate(accumulate_df.tail(1), headers="keys", tablefmt="psql")} \n')
 
 def validate_product_id(product_id):
+    '''Validate that the product ID is supported'''
     if product_id.upper() not in SUPPORTED_PRODUCTS:
         raise argparse.ArgumentTypeError(f"Unsupported product '{product_id.upper()}'. Supported products are {SUPPORTED_PRODUCTS}")
     return product_id.upper()
 
 def main():
     '''Ask user for a crypto product_id they are interested in'''
+    # Create an argument parser
     parser = argparse.ArgumentParser(description="Generate insights for a provided crypto product.")
+    # Add an argument for the product ID, with validation
     parser.add_argument("product_id", help="Provide crypto product to generate insights in format e.g. BTC-USD", type=validate_product_id, nargs="?")
 
+    # Parse the arguments
     args = parser.parse_args()
+    # If a product ID was provided as an argument, use it
     if args.product_id:
         product_id = args.product_id
     else:
+        # Otherwise, keep asking the user for a product ID until a valid one is provided
         while True:
             try:
                 product_id = input("Provide crypto product to generate insights in format e.g. BTC-USD :\n> ")
@@ -157,12 +168,18 @@ def main():
 
     ws = None
     try:
-        threading.Thread(target=process_batch_messages, args=(5,)).start()
+        # Set the interval for processing batch messages
+        interval = 5
+        # Submit the process_batch_messages function to be run in a separate thread
+        executor.submit(process_batch_messages, interval)
 
+        # Open a WebSocket connection
         ws = create_connection(SOCKET_URI)
         print("WebSocket opened")
+        # Send a subscribe message over the WebSocket
         ws.send(json.dumps(subscribe_message))
 
+        # Continuously receive messages from the WebSocket, transform them, and add them to the queue
         while True:
             message = ws.recv()
             transformed_message = transform_message(message)
@@ -170,9 +187,11 @@ def main():
                 message_queue.put(transformed_message)
 
     except Exception as e:
+        # If an error occurs, print it
         print(f"An error occurred: {str(e)}")
 
     finally:
+        # Close the WebSocket connection when done
         if ws:
             ws.close()
         print("\nWebSocket closed")
