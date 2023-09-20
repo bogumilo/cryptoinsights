@@ -17,11 +17,10 @@ pip install -r requirements.txt
 
  ## Run script to get real-time insights in CLI
 ```py
-python solutions.py
+python insights.py
 ```
 
-Choose BTC-USD when prompted. This start to ingest data from WebSocket to data.csv in the background.
-Leave it for a couple of minutes to have the most accurate data.
+Choose BTC-USD when prompted. This start to ingest data from WebSocket.
 
 Insights consist of:
 - current  `highest_bid` and `lowest_ask` from the order book with their `quantity`
